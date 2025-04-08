@@ -35,7 +35,7 @@ default_content = {
 # Load persistent custom codes from file
 custom_codes = load_custom_codes()
 
-st.title("Code-Based Image & Information Display with Persistent Storage")
+st.title("Art Catalogue")
 
 # --- Section to Add Custom Codes ---
 with st.expander("Add Custom Code"):
