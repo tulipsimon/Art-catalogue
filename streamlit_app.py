@@ -2,6 +2,8 @@ import json
 import os
 import streamlit as st
 import pandas as pd
+import csv
+from io import StringIO
 
 DATA_FILE = "custom_codes.json"
 
@@ -32,7 +34,6 @@ with st.expander("Add Custom Code"):
         new_url = st.text_input("Enter image URL:")
         name = st.text_input("Name (optional):")
         
-        # Split info into categories
         col1, col2 = st.columns(2)
         with col1:
             media = st.text_input("Media (e.g., Oil on Canvas):")
@@ -77,7 +78,7 @@ with st.expander("Add Custom Code"):
             else:
                 st.error("Please fill in all required fields (except name and secondary series).")
 
-# --- Section to Manage (Edit/Delete) Existing Codes ---
+# --- Section to Manage Existing Codes ---
 with st.expander("Manage Existing Codes"):
     if not custom_codes:
         st.write("No codes available to manage.")
@@ -151,10 +152,10 @@ with st.expander("Manage Existing Codes"):
                             st.success("Code deleted successfully!")
                             st.experimental_rerun()
 
-# --- Section to Bulk Upload Codes via Excel ---
+# --- Section to Bulk Upload Codes via CSV ---
 with st.expander("Bulk Upload Codes"):
     st.write("""
-    Upload an Excel file (.xlsx) with these columns:
+    Upload a CSV file with these columns:
     - **code**: 11-digit code
     - **url**: Image URL
     - **name**: Optional artwork name
@@ -167,76 +168,80 @@ with st.expander("Bulk Upload Codes"):
     - **area**: in cm²
     """)
     
-    uploaded_file = st.file_uploader("Choose an Excel file", type=["xlsx"])
+    uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
     
     if uploaded_file is not None:
         try:
-            df = pd.read_excel(uploaded_file)
-        except Exception as e:
-            st.error(f"Error reading Excel file: {e}")
-        else:
-            required_cols = {
-                "code", "url", "media", "year", 
-                "series", "length", "width", "area"
-            }
-            if not required_cols.issubset(set(df.columns)):
-                st.error(f"The Excel file must contain these columns: {', '.join(required_cols)}")
+            # Read CSV file directly without pandas
+            csv_data = uploaded_file.read().decode('utf-8')
+            csv_reader = csv.DictReader(StringIO(csv_data))
+            rows = list(csv_reader)
+            
+            if not rows:
+                st.error("CSV file is empty")
             else:
-                added = 0
-                skipped = 0
-                messages = []
+                required_cols = {
+                    'code', 'url', 'media', 'year', 
+                    'series', 'length', 'width', 'area'
+                }
                 
-                # Reverted to vertical code list display
-                if custom_codes:
+                if not required_cols.issubset(set(rows[0].keys())):
+                    st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
+                else:
+                    added = 0
+                    skipped = 0
+                    messages = []
+                    
                     st.write("Existing Codes:")
                     st.write(list(custom_codes.keys()))
-                
-                for idx, row in df.iterrows():
-                    code_val = str(row['code']).strip()
-                    url_val = str(row['url']).strip()
-                    row_number = idx + 2
                     
-                    if len(code_val) != 11 or not code_val.isdigit():
-                        messages.append(f"Row {row_number}: Invalid code (must be 11 digits)")
-                        skipped += 1
-                        continue
-                    if not url_val:
-                        messages.append(f"Row {row_number}: Missing URL")
-                        skipped += 1
-                        continue
-                    if not str(row['year']).strip().isdigit() or len(str(row['year']).strip()) != 4:
-                        messages.append(f"Row {row_number}: Year must be 4 digits")
-                        skipped += 1
-                        continue
-                    
-                    details = {
-                        "media": str(row['media']).strip(),
-                        "year": str(row['year']).strip(),
-                        "series": str(row['series']).strip(),
-                        "secondary_series": str(row.get('secondary_series', '')).strip(),
-                        "dimensions": {
-                            "length": str(row['length']).strip(),
-                            "width": str(row['width']).strip(),
-                            "area": f"{str(row['area']).strip()} cm²"
+                    for row_number, row in enumerate(rows, start=2):
+                        code_val = str(row['code']).strip()
+                        url_val = str(row['url']).strip()
+                        
+                        if len(code_val) != 11 or not code_val.isdigit():
+                            messages.append(f"Row {row_number}: Invalid code (must be 11 digits)")
+                            skipped += 1
+                            continue
+                        if not url_val:
+                            messages.append(f"Row {row_number}: Missing URL")
+                            skipped += 1
+                            continue
+                        if not str(row['year']).strip().isdigit() or len(str(row['year']).strip()) != 4:
+                            messages.append(f"Row {row_number}: Year must be 4 digits")
+                            skipped += 1
+                            continue
+                        
+                        details = {
+                            "media": str(row['media']).strip(),
+                            "year": str(row['year']).strip(),
+                            "series": str(row['series']).strip(),
+                            "secondary_series": str(row.get('secondary_series', '')).strip(),
+                            "dimensions": {
+                                "length": str(row['length']).strip(),
+                                "width": str(row['width']).strip(),
+                                "area": f"{str(row['area']).strip()} cm²"
+                            }
                         }
-                    }
+                        
+                        if code_val in custom_codes:
+                            messages.append(f"Row {row_number}: Code exists - skipped")
+                            skipped += 1
+                        else:
+                            custom_codes[code_val] = {
+                                "url": url_val,
+                                "name": str(row.get('name', '')).strip(),
+                                "details": details
+                            }
+                            added += 1
                     
-                    if code_val in custom_codes:
-                        messages.append(f"Row {row_number}: Code exists - skipped")
-                        skipped += 1
-                    else:
-                        custom_codes[code_val] = {
-                            "url": url_val,
-                            "name": str(row.get('name', '')).strip(),
-                            "details": details
-                        }
-                        added += 1
-                
-                save_custom_codes(custom_codes)
-                st.success(f"Bulk upload complete. Added {added} codes; skipped {skipped} rows.")
-                if messages:
-                    with st.expander("View detailed messages"):
-                        st.write("\n".join(messages))
+                    save_custom_codes(custom_codes)
+                    st.success(f"Bulk upload complete. Added {added} codes; skipped {skipped} rows.")
+                    if messages:
+                        with st.expander("View detailed messages"):
+                            st.write("\n".join(messages))
+        except Exception as e:
+            st.error(f"Error reading CSV file: {e}")
 
 # --- Section to Display Content Based on Code ---
 st.header("View Art by Code")
