@@ -1,3 +1,155 @@
+import json
+import os
+import streamlit as st
+import pandas as pd
+
+DATA_FILE = "custom_codes.json"
+
+def load_custom_codes():
+    """Load custom codes from the JSON file."""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+def save_custom_codes(codes):
+    """Save custom codes to the JSON file."""
+    with open(DATA_FILE, "w") as f:
+        json.dump(codes, f, indent=4)
+
+# Load persistent custom codes from file.
+custom_codes = load_custom_codes()
+
+st.title("Art Catalogue")
+
+# --- Section to Add a Single Custom Code ---
+with st.expander("Add Custom Code"):
+    with st.form("custom_code_form", clear_on_submit=True):
+        new_code = st.text_input("Enter new 11-digit code:", max_chars=11)
+        new_url = st.text_input("Enter image URL:")
+        
+        # Split info into 7 categories
+        col1, col2 = st.columns(2)
+        with col1:
+            media = st.text_input("Media (e.g., Oil on Canvas):")
+            year = st.text_input("Year:", max_chars=4)
+            series = st.text_input("Series:")
+        with col2:
+            secondary_series = st.text_input("Secondary Series (optional):")
+            length = st.text_input("Length (cm):")
+            width = st.text_input("Width (cm):")
+            size = st.text_input("Size Category (e.g., Small, Medium, Large):")
+        
+        submitted = st.form_submit_button("Add Code")
+        if submitted:
+            if (new_code.strip() and new_url.strip() and media and year and 
+                series and length and width and size):
+                if not new_code.strip().isdigit() or len(new_code.strip()) != 11:
+                    st.error("Code must be exactly 11 numerical digits.")
+                elif not year.isdigit() or len(year) != 4:
+                    st.error("Year must be a 4-digit number.")
+                else:
+                    standardized_code = new_code.strip()
+                    if standardized_code in custom_codes:
+                        st.error("This code already exists. Please try a different code.")
+                    else:
+                        # Store all information in a structured format
+                        custom_codes[standardized_code] = {
+                            "url": new_url.strip(),
+                            "details": {
+                                "media": media.strip(),
+                                "year": year.strip(),
+                                "series": series.strip(),
+                                "secondary_series": secondary_series.strip(),
+                                "dimensions": {
+                                    "length": length.strip(),
+                                    "width": width.strip(),
+                                    "size_category": size.strip()
+                                }
+                            }
+                        }
+                        save_custom_codes(custom_codes)
+                        st.success(f"Code '{standardized_code}' added successfully.")
+            else:
+                st.error("Please fill in all required fields (except secondary series).")
+
+# --- Section to Manage (Edit/Delete) Existing Codes ---
+with st.expander("Manage Existing Codes"):
+    if not custom_codes:
+        st.write("No codes available to manage.")
+    else:
+        # Display all available codes for reference
+        st.write("Available codes:")
+        st.write(list(custom_codes.keys()))
+        
+        # Text input for code selection
+        selected_code = st.text_input(
+            "Enter the 11-digit code you want to manage:",
+            key="manage_code"
+        )
+        
+        if selected_code:
+            entered_code = selected_code.strip()
+            if not entered_code.isdigit() or len(entered_code) != 11:
+                st.error("Please enter exactly 11 numerical digits.")
+            elif entered_code not in custom_codes:
+                st.error("Code not found. Please enter a valid code.")
+            else:
+                # Display current information
+                st.write(f"**Current URL:** {custom_codes[entered_code]['url']}")
+                details = custom_codes[entered_code]['details']
+                
+                # Edit form with all categories
+                with st.form(f"edit_form_{entered_code}"):
+                    new_url = st.text_input("New URL:", value=custom_codes[entered_code]["url"])
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        new_media = st.text_input("Media:", value=details["media"])
+                        new_year = st.text_input("Year:", value=details["year"], max_chars=4)
+                        new_series = st.text_input("Series:", value=details["series"])
+                    with col2:
+                        new_secondary_series = st.text_input("Secondary Series:", 
+                                            value=details["secondary_series"])
+                        new_length = st.text_input("Length (cm):", 
+                                        value=details["dimensions"]["length"])
+                        new_width = st.text_input("Width (cm):", 
+                                       value=details["dimensions"]["width"])
+                        new_size = st.text_input("Size Category:", 
+                                   value=details["dimensions"]["size_category"])
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.form_submit_button("Update Code"):
+                            if not new_year.isdigit() or len(new_year) != 4:
+                                st.error("Year must be a 4-digit number.")
+                            else:
+                                custom_codes[entered_code] = {
+                                    "url": new_url.strip(),
+                                    "details": {
+                                        "media": new_media.strip(),
+                                        "year": new_year.strip(),
+                                        "series": new_series.strip(),
+                                        "secondary_series": new_secondary_series.strip(),
+                                        "dimensions": {
+                                            "length": new_length.strip(),
+                                            "width": new_width.strip(),
+                                            "size_category": new_size.strip()
+                                        }
+                                    }
+                                }
+                                save_custom_codes(custom_codes)
+                                st.success("Code updated successfully!")
+                    with col2:
+                        if st.form_submit_button("Delete Code"):
+                            del custom_codes[entered_code]
+                            save_custom_codes(custom_codes)
+                            st.success("Code deleted successfully!")
+                            st.experimental_rerun()
+
 # --- Section to Bulk Upload Codes via Excel ---
 with st.expander("Bulk Upload Codes"):
     st.write("""
@@ -32,16 +184,23 @@ with st.expander("Bulk Upload Codes"):
                 skipped = 0
                 messages = []
                 
-                # Display available codes horizontally
+                # Display existing codes horizontally
                 if custom_codes:
                     st.write("Existing Codes:")
-                    # Create a row of buttons/pills for each code
-                    cols = st.columns(8)  # Adjust number of columns as needed
-                    col_index = 0
-                    for code in custom_codes.keys():
-                        with cols[col_index % len(cols)]:
-                            st.code(code)
-                        col_index += 1
+                    # Create a flexible grid of code pills
+                    cols_per_row = 8
+                    codes = list(custom_codes.keys())
+                    for i in range(0, len(codes), cols_per_row):
+                        cols = st.columns(cols_per_row)
+                        for j in range(cols_per_row):
+                            if i + j < len(codes):
+                                with cols[j]:
+                                    st.markdown(
+                                        f"<div style='padding: 0.25rem; margin: 0.1rem; "
+                                        f"border-radius: 0.25rem; background-color: #f0f2f6; "
+                                        f"text-align: center;'>{codes[i+j]}</div>",
+                                        unsafe_allow_html=True
+                                    )
                 
                 # Process each row
                 for idx, row in df.iterrows():
@@ -91,3 +250,34 @@ with st.expander("Bulk Upload Codes"):
                 if messages:
                     with st.expander("View detailed messages"):
                         st.write("\n".join(messages))
+
+# --- Section to Display Content Based on Code ---
+st.header("View Art by Code")
+user_code = st.text_input("Enter an 11-digit code to display the corresponding image and information:", 
+                         key="view_code")
+if user_code:
+    entered_code = user_code.strip()
+    if not entered_code.isdigit() or len(entered_code) != 11:
+        st.error("Please enter exactly 11 numerical digits.")
+    else:
+        if entered_code in custom_codes:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.image(custom_codes[entered_code]["url"], use_container_width=True)
+            with col2:
+                st.header("Artwork Details")
+                details = custom_codes[entered_code]["details"]
+                
+                st.subheader("Basic Information")
+                st.write(f"**Media:** {details['media']}")
+                st.write(f"**Year:** {details['year']}")
+                st.write(f"**Series:** {details['series']}")
+                if details['secondary_series']:
+                    st.write(f"**Secondary Series:** {details['secondary_series']}")
+                
+                st.subheader("Dimensions")
+                st.write(f"**Length:** {details['dimensions']['length']} cm")
+                st.write(f"**Width:** {details['dimensions']['width']} cm")
+                st.write(f"**Size Category:** {details['dimensions']['size_category']}")
+        else:
+            st.error("Unrecognized code. Please try again with a valid code.")
