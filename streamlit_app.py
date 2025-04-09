@@ -52,32 +52,42 @@ with st.expander("Manage Existing Codes"):
     if not custom_codes:
         st.write("No codes available to manage.")
     else:
-        selected_code = st.selectbox(
-            "Select a code to manage:",
-            options=list(custom_codes.keys()),
-            format_func=lambda x: f"{x} - {custom_codes[x]['info'][:50]}..."
+        # Display all available codes for reference
+        st.write("Available codes:")
+        st.write(list(custom_codes.keys()))
+        
+        # Text input for code selection instead of dropdown
+        selected_code = st.text_input(
+            "Enter the 11-digit code you want to manage:",
+            key="manage_code"
         )
         
         if selected_code:
-            st.write(f"**Current URL:** {custom_codes[selected_code]['url']}")
-            st.write(f"**Current Info:** {custom_codes[selected_code]['info']}")
-            
-            # Provide an edit form.
-            with st.form(f"edit_form_{selected_code}"):
-                new_url = st.text_input("New URL:", value=custom_codes[selected_code]["url"])
-                new_info = st.text_area("New Info:", value=custom_codes[selected_code]["info"])
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.form_submit_button("Update Code"):
-                        custom_codes[selected_code] = {"url": new_url.strip(), "info": new_info.strip()}
-                        save_custom_codes(custom_codes)
-                        st.success("Code updated successfully!")
-                with col2:
-                    if st.form_submit_button("Delete Code"):
-                        del custom_codes[selected_code]
-                        save_custom_codes(custom_codes)
-                        st.success("Code deleted successfully!")
-                        st.experimental_rerun()
+            entered_code = selected_code.strip()
+            if not entered_code.isdigit() or len(entered_code) != 11:
+                st.error("Please enter exactly 11 numerical digits.")
+            elif entered_code not in custom_codes:
+                st.error("Code not found. Please enter a valid code.")
+            else:
+                st.write(f"**Current URL:** {custom_codes[entered_code]['url']}")
+                st.write(f"**Current Info:** {custom_codes[entered_code]['info']}")
+                
+                # Provide an edit form.
+                with st.form(f"edit_form_{entered_code}"):
+                    new_url = st.text_input("New URL:", value=custom_codes[entered_code]["url"])
+                    new_info = st.text_area("New Info:", value=custom_codes[entered_code]["info"])
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.form_submit_button("Update Code"):
+                            custom_codes[entered_code] = {"url": new_url.strip(), "info": new_info.strip()}
+                            save_custom_codes(custom_codes)
+                            st.success("Code updated successfully!")
+                    with col2:
+                        if st.form_submit_button("Delete Code"):
+                            del custom_codes[entered_code]
+                            save_custom_codes(custom_codes)
+                            st.success("Code deleted successfully!")
+                            st.experimental_rerun()
 
 # --- Section to Bulk Upload Codes via Excel ---
 with st.expander("Bulk Upload Codes"):
