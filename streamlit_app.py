@@ -30,7 +30,7 @@ with st.expander("Add Custom Code"):
     with st.form("custom_code_form", clear_on_submit=True):
         new_code = st.text_input("Enter new 11-digit code:", max_chars=11)
         new_url = st.text_input("Enter image URL:")
-        name = st.text_input("Name (optional):")  # New optional name field
+        name = st.text_input("Name (optional):")
         
         # Split info into categories
         col1, col2 = st.columns(2)
@@ -42,12 +42,12 @@ with st.expander("Add Custom Code"):
             secondary_series = st.text_input("Secondary Series (optional):")
             length = st.text_input("Length (cm):")
             width = st.text_input("Width (cm):")
-            area = st.text_input("Area (cm²):")  # Changed from size_category to area
+            area = st.text_input("Area (cm²):")
         
         submitted = st.form_submit_button("Add Code")
         if submitted:
             if (new_code.strip() and new_url.strip() and media and year and 
-                series and length and width and area):  # Changed to area
+                series and length and width and area):
                 if not new_code.strip().isdigit() or len(new_code.strip()) != 11:
                     st.error("Code must be exactly 11 numerical digits.")
                 elif not year.isdigit() or len(year) != 4:
@@ -57,10 +57,9 @@ with st.expander("Add Custom Code"):
                     if standardized_code in custom_codes:
                         st.error("This code already exists. Please try a different code.")
                     else:
-                        # Store all information in a structured format
                         custom_codes[standardized_code] = {
                             "url": new_url.strip(),
-                            "name": name.strip(),  # Added name field
+                            "name": name.strip(),
                             "details": {
                                 "media": media.strip(),
                                 "year": year.strip(),
@@ -69,7 +68,7 @@ with st.expander("Add Custom Code"):
                                 "dimensions": {
                                     "length": length.strip(),
                                     "width": width.strip(),
-                                    "area": f"{area.strip()} cm²"  # Changed to area with unit
+                                    "area": f"{area.strip()} cm²"
                                 }
                             }
                         }
@@ -83,11 +82,9 @@ with st.expander("Manage Existing Codes"):
     if not custom_codes:
         st.write("No codes available to manage.")
     else:
-        # Display all available codes for reference
         st.write("Available codes:")
         st.write(list(custom_codes.keys()))
         
-        # Text input for code selection
         selected_code = st.text_input(
             "Enter the 11-digit code you want to manage:",
             key="manage_code"
@@ -100,13 +97,11 @@ with st.expander("Manage Existing Codes"):
             elif entered_code not in custom_codes:
                 st.error("Code not found. Please enter a valid code.")
             else:
-                # Display current information
                 st.write(f"**Current URL:** {custom_codes[entered_code]['url']}")
                 if custom_codes[entered_code].get('name'):
                     st.write(f"**Name:** {custom_codes[entered_code]['name']}")
                 details = custom_codes[entered_code]['details']
                 
-                # Edit form with all categories
                 with st.form(f"edit_form_{entered_code}"):
                     new_url = st.text_input("New URL:", value=custom_codes[entered_code]["url"])
                     new_name = st.text_input("Name:", value=custom_codes[entered_code].get('name', ''))
@@ -191,31 +186,16 @@ with st.expander("Bulk Upload Codes"):
                 skipped = 0
                 messages = []
                 
-                # Display existing codes horizontally
+                # Reverted to vertical code list display
                 if custom_codes:
                     st.write("Existing Codes:")
-                    # Create a flexible grid of code pills
-                    cols_per_row = 8
-                    codes = list(custom_codes.keys())
-                    for i in range(0, len(codes), cols_per_row):
-                        cols = st.columns(cols_per_row)
-                        for j in range(cols_per_row):
-                            if i + j < len(codes):
-                                with cols[j]:
-                                    st.markdown(
-                                        f"<div style='padding: 0.25rem; margin: 0.1rem; "
-                                        f"border-radius: 0.25rem; background-color: #f0f2f6; "
-                                        f"text-align: center;'>{codes[i+j]}</div>",
-                                        unsafe_allow_html=True
-                                    )
+                    st.write(list(custom_codes.keys()))
                 
-                # Process each row
                 for idx, row in df.iterrows():
                     code_val = str(row['code']).strip()
                     url_val = str(row['url']).strip()
-                    row_number = idx + 2  # Accounting for header row
+                    row_number = idx + 2
                     
-                    # Validate required fields
                     if len(code_val) != 11 or not code_val.isdigit():
                         messages.append(f"Row {row_number}: Invalid code (must be 11 digits)")
                         skipped += 1
@@ -229,7 +209,6 @@ with st.expander("Bulk Upload Codes"):
                         skipped += 1
                         continue
                     
-                    # Prepare details
                     details = {
                         "media": str(row['media']).strip(),
                         "year": str(row['year']).strip(),
