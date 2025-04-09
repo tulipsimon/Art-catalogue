@@ -30,8 +30,9 @@ with st.expander("Add Custom Code"):
     with st.form("custom_code_form", clear_on_submit=True):
         new_code = st.text_input("Enter new 11-digit code:", max_chars=11)
         new_url = st.text_input("Enter image URL:")
+        name = st.text_input("Name (optional):")  # New optional name field
         
-        # Split info into 7 categories
+        # Split info into categories
         col1, col2 = st.columns(2)
         with col1:
             media = st.text_input("Media (e.g., Oil on Canvas):")
@@ -41,12 +42,12 @@ with st.expander("Add Custom Code"):
             secondary_series = st.text_input("Secondary Series (optional):")
             length = st.text_input("Length (cm):")
             width = st.text_input("Width (cm):")
-            size = st.text_input("Size Category (e.g., Small, Medium, Large):")
+            area = st.text_input("Area (cm²):")  # Changed from size_category to area
         
         submitted = st.form_submit_button("Add Code")
         if submitted:
             if (new_code.strip() and new_url.strip() and media and year and 
-                series and length and width and size):
+                series and length and width and area):  # Changed to area
                 if not new_code.strip().isdigit() or len(new_code.strip()) != 11:
                     st.error("Code must be exactly 11 numerical digits.")
                 elif not year.isdigit() or len(year) != 4:
@@ -59,6 +60,7 @@ with st.expander("Add Custom Code"):
                         # Store all information in a structured format
                         custom_codes[standardized_code] = {
                             "url": new_url.strip(),
+                            "name": name.strip(),  # Added name field
                             "details": {
                                 "media": media.strip(),
                                 "year": year.strip(),
@@ -67,14 +69,14 @@ with st.expander("Add Custom Code"):
                                 "dimensions": {
                                     "length": length.strip(),
                                     "width": width.strip(),
-                                    "size_category": size.strip()
+                                    "area": f"{area.strip()} cm²"  # Changed to area with unit
                                 }
                             }
                         }
                         save_custom_codes(custom_codes)
                         st.success(f"Code '{standardized_code}' added successfully.")
             else:
-                st.error("Please fill in all required fields (except secondary series).")
+                st.error("Please fill in all required fields (except name and secondary series).")
 
 # --- Section to Manage (Edit/Delete) Existing Codes ---
 with st.expander("Manage Existing Codes"):
@@ -100,11 +102,14 @@ with st.expander("Manage Existing Codes"):
             else:
                 # Display current information
                 st.write(f"**Current URL:** {custom_codes[entered_code]['url']}")
+                if custom_codes[entered_code].get('name'):
+                    st.write(f"**Name:** {custom_codes[entered_code]['name']}")
                 details = custom_codes[entered_code]['details']
                 
                 # Edit form with all categories
                 with st.form(f"edit_form_{entered_code}"):
                     new_url = st.text_input("New URL:", value=custom_codes[entered_code]["url"])
+                    new_name = st.text_input("Name:", value=custom_codes[entered_code].get('name', ''))
                     
                     col1, col2 = st.columns(2)
                     with col1:
@@ -115,11 +120,11 @@ with st.expander("Manage Existing Codes"):
                         new_secondary_series = st.text_input("Secondary Series:", 
                                             value=details["secondary_series"])
                         new_length = st.text_input("Length (cm):", 
-                                        value=details["dimensions"]["length"])
+                                        value=details["dimensions"]["length"].replace(' cm²', '').split(' ')[0])
                         new_width = st.text_input("Width (cm):", 
-                                       value=details["dimensions"]["width"])
-                        new_size = st.text_input("Size Category:", 
-                                   value=details["dimensions"]["size_category"])
+                                       value=details["dimensions"]["width"].replace(' cm²', '').split(' ')[0])
+                        new_area = st.text_input("Area (cm²):", 
+                                   value=details["dimensions"]["area"].replace(' cm²', '').split(' ')[0])
                     
                     col1, col2 = st.columns(2)
                     with col1:
@@ -129,6 +134,7 @@ with st.expander("Manage Existing Codes"):
                             else:
                                 custom_codes[entered_code] = {
                                     "url": new_url.strip(),
+                                    "name": new_name.strip(),
                                     "details": {
                                         "media": new_media.strip(),
                                         "year": new_year.strip(),
@@ -137,7 +143,7 @@ with st.expander("Manage Existing Codes"):
                                         "dimensions": {
                                             "length": new_length.strip(),
                                             "width": new_width.strip(),
-                                            "size_category": new_size.strip()
+                                            "area": f"{new_area.strip()} cm²"
                                         }
                                     }
                                 }
@@ -156,13 +162,14 @@ with st.expander("Bulk Upload Codes"):
     Upload an Excel file (.xlsx) with these columns:
     - **code**: 11-digit code
     - **url**: Image URL
+    - **name**: Optional artwork name
     - **media**: e.g., Oil on Canvas
     - **year**: 4-digit year
     - **series**: Primary series
     - **secondary_series**: Optional
     - **length**: in cm
     - **width**: in cm
-    - **size_category**: e.g., Small, Medium, Large
+    - **area**: in cm²
     """)
     
     uploaded_file = st.file_uploader("Choose an Excel file", type=["xlsx"])
@@ -175,7 +182,7 @@ with st.expander("Bulk Upload Codes"):
         else:
             required_cols = {
                 "code", "url", "media", "year", 
-                "series", "length", "width", "size_category"
+                "series", "length", "width", "area"
             }
             if not required_cols.issubset(set(df.columns)):
                 st.error(f"The Excel file must contain these columns: {', '.join(required_cols)}")
@@ -231,7 +238,7 @@ with st.expander("Bulk Upload Codes"):
                         "dimensions": {
                             "length": str(row['length']).strip(),
                             "width": str(row['width']).strip(),
-                            "size_category": str(row['size_category']).strip()
+                            "area": f"{str(row['area']).strip()} cm²"
                         }
                     }
                     
@@ -241,6 +248,7 @@ with st.expander("Bulk Upload Codes"):
                     else:
                         custom_codes[code_val] = {
                             "url": url_val,
+                            "name": str(row.get('name', '')).strip(),
                             "details": details
                         }
                         added += 1
@@ -261,12 +269,17 @@ if user_code:
         st.error("Please enter exactly 11 numerical digits.")
     else:
         if entered_code in custom_codes:
+            artwork = custom_codes[entered_code]
             col1, col2 = st.columns(2)
             with col1:
-                st.image(custom_codes[entered_code]["url"], use_container_width=True)
+                st.image(artwork["url"], use_container_width=True)
             with col2:
                 st.header("Artwork Details")
-                details = custom_codes[entered_code]["details"]
+                if artwork.get('name'):
+                    st.subheader(artwork['name'])
+                
+                st.write(f"**Code:** {entered_code}")
+                details = artwork["details"]
                 
                 st.subheader("Basic Information")
                 st.write(f"**Media:** {details['media']}")
@@ -278,6 +291,6 @@ if user_code:
                 st.subheader("Dimensions")
                 st.write(f"**Length:** {details['dimensions']['length']} cm")
                 st.write(f"**Width:** {details['dimensions']['width']} cm")
-                st.write(f"**Size Category:** {details['dimensions']['size_category']}")
+                st.write(f"**Area:** {details['dimensions']['area']}")
         else:
             st.error("Unrecognized code. Please try again with a valid code.")
